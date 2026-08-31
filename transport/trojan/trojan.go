@@ -7,7 +7,9 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http"
 	"sync"
+	"time"
 
 	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/common/pool"
@@ -36,18 +38,45 @@ const (
 	KeyLength = 56
 )
 
+const RepeatCharString = "************************************************************"
+
 func WriteHeader(w io.Writer, hexPassword [KeyLength]byte, command Command, socks5Addr []byte) error {
+	// buf := pool.GetBuffer()
+	// defer pool.PutBuffer(buf)
+
+	// buf.Write(hexPassword[:])
+	// buf.Write(crlf)
+
+	// buf.WriteByte(command)
+	// buf.Write(socks5Addr)
+	// buf.Write(crlf)
+
+	// _, err := w.Write(buf.Bytes())
+	// return err
 	buf := pool.GetBuffer()
 	defer pool.PutBuffer(buf)
 
-	buf.Write(hexPassword[:])
-	buf.Write(crlf)
-
 	buf.WriteByte(command)
 	buf.Write(socks5Addr)
-	buf.Write(crlf)
 
-	_, err := w.Write(buf.Bytes())
+	req, err := http.NewRequest("GET", "/wg", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-HASH", string(hexPassword[:]))
+	req.Header.Set("X-METADATA", hex.EncodeToString(buf.Bytes()))
+
+	currSecs := time.Now().Second()
+	secsBytes := make([]byte, currSecs)
+	copy(secsBytes, RepeatCharString)
+
+	req.Header.Set("X-SECS", string(secsBytes))
+
+	err = req.Write(w)
+	if err != nil {
+		return err
+	}
+
 	return err
 }
 
